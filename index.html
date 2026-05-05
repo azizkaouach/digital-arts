@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Machine Innocence: Algorithmic Reductionism</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="intro" aria-labelledby="project-title">
+        <p class="kicker">Interactive Digital Arts Installation</p>
+        <h1 id="project-title">Machine Innocence</h1>
+        <p class="subtitle">Algorithmic Reductionism</p>
+      </section>
+
+      <section class="upload-panel" id="uploadPanel">
+        <label class="drop-zone" id="dropZone" for="imageInput">
+          <input id="imageInput" type="file" accept="image/*" />
+          <span class="drop-icon" aria-hidden="true"></span>
+          <span class="drop-title">Place a monument into the machine</span>
+          <span class="drop-copy">Drag an image here or click to upload</span>
+        </label>
+      </section>
+
+      <section class="sketch-view" id="sketchView" hidden>
+        <article class="art-panel">
+          <div class="panel-header">
+            <span>Historical Reality</span>
+            <button class="text-button" id="replaceImageButton" type="button">Change image</button>
+          </div>
+          <div class="image-frame">
+            <img id="sketchOriginalImage" alt="Original uploaded historical monument" />
+          </div>
+        </article>
+
+        <article class="art-panel">
+          <div class="panel-header">
+            <span>Human Sketch</span>
+            <div class="tool-row" role="toolbar" aria-label="Sketch tools">
+              <button class="icon-button is-active" id="drawToolButton" type="button" aria-label="Draw">D</button>
+              <button class="icon-button" id="eraseToolButton" type="button" aria-label="Erase">E</button>
+              <button class="text-button" id="resetSketchButton" type="button">Reset</button>
+              <button class="primary-button" id="generateButton" type="button">Generate</button>
+            </div>
+          </div>
+          <div class="canvas-frame">
+            <canvas id="sketchCanvas" width="768" height="768" aria-label="Sketch of the uploaded monument"></canvas>
+          </div>
+        </article>
+      </section>
+
+      <section class="loading-state" id="loadingState" aria-live="polite" hidden>
+        <div class="loader" aria-hidden="true"></div>
+        <p>The algorithm is interpreting history...</p>
+      </section>
+
+      <section class="result-view" id="resultView" hidden>
+        <article class="art-panel">
+          <div class="panel-header">
+            <span>Historical Reality</span>
+            <button class="text-button" id="changeImageButton" type="button">Change image</button>
+          </div>
+          <div class="image-frame">
+            <img id="originalImage" alt="Original uploaded historical monument" />
+          </div>
+        </article>
+
+        <article class="art-panel">
+          <div class="panel-header">
+            <span>Algorithmic Reduction</span>
+          </div>
+          <div class="image-frame">
+            <img id="generatedImage" alt="AI-generated child-friendly monument illustration" />
+          </div>
+          <p class="story" id="storyText"></p>
+        </article>
+      </section>
+
+      <p class="error-message" id="errorMessage" role="alert" hidden></p>
+    </main>
+
+    <footer>A Digital Arts Installation by Aziz, Thameur, Rayen and Faouzi.</footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

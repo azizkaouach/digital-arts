@@ -1,0 +1,15 @@
+INFO:     127.0.0.1:64431 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64434 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64697 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64697 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62034 - "GET /script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62034 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55161 - "POST /api/transform-monument HTTP/1.1" 502 Bad Gateway
+INFO:     127.0.0.1:59536 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59536 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50628 - "GET /script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60516 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52838 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52838 - "GET /style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58231 - "GET /script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55883 - "POST /api/transform-monument HTTP/1.1" 502 Bad Gateway

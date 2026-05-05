@@ -12,30 +12,29 @@ A Digital Arts Installation by Aziz, Thameur, Rayen and Faouzi.
 ## How it works
 
 ```
-Upload photo (+ optional sketch)
+Upload photo
         │
-        ▼
-Gemini text  → 3-sentence kid story
-        │
-Gemini image → flat, posterized illustration (solid color shapes, no shading)
+        ├──► Gemini text  → 3-sentence kid story (free tier)
         │
         ▼
 Server post-processing (Pillow + NumPy + SciPy + scikit-learn)
    1. Resize to a printable square (1200×1200)
-   2. KMeans color quantization (4–12 colors)
-   3. Connected-component region labeling
-   4. Drop tiny regions into their largest neighbour
-   5. Trace region borders → black outlines
-   6. Place a color number at each region's centroid
-   7. Build a color legend (number → swatch + hex)
+   2. Median + Gaussian smoothing (merges noise into solid regions)
+   3. KMeans color quantization (4–12 colors)
+   4. Connected-component region labeling
+   5. Drop tiny regions into their largest neighbour
+   6. Trace region borders → black outlines
+   7. Place a color number at each region's centroid
+   8. Build a color legend (number → swatch + hex)
         │
         ▼
 Frontend renders: outline PNG + legend chips + story + Download / Print
 ```
 
-The hybrid pipeline (Gemini for the creative simplification, deterministic
-Python for the geometry) keeps the output reliable: numbers always land inside
-their regions and the legend always matches what's on the page.
+The image pipeline is fully deterministic and runs locally with Pillow / NumPy
+/ SciPy / scikit-learn — no paid AI calls, no quota limits, no key required.
+Gemini is only used for the optional kid-friendly story (covered by the free
+tier).
 
 ---
 

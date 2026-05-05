@@ -1,23 +1,19 @@
 const uploadPanel = document.querySelector("#uploadPanel");
-const sketchView = document.querySelector("#sketchView");
+const optionsRow = document.querySelector("#optionsRow");
 const dropZone = document.querySelector("#dropZone");
 const imageInput = document.querySelector("#imageInput");
 const loadingState = document.querySelector("#loadingState");
 const loadingMessage = document.querySelector("#loadingMessage");
 const resultView = document.querySelector("#resultView");
 const originalImage = document.querySelector("#originalImage");
-const sketchOriginalImage = document.querySelector("#sketchOriginalImage");
 const generatedImage = document.querySelector("#generatedImage");
 const storyText = document.querySelector("#storyText");
 const storyCard = document.querySelector("#storyCard");
+const aboutText = document.querySelector("#aboutText");
+const aboutCard = document.querySelector("#aboutCard");
 const legendList = document.querySelector("#legendList");
 const errorMessage = document.querySelector("#errorMessage");
 const changeImageButton = document.querySelector("#changeImageButton");
-const replaceImageButton = document.querySelector("#replaceImageButton");
-const drawToolButton = document.querySelector("#drawToolButton");
-const eraseToolButton = document.querySelector("#eraseToolButton");
-const resetSketchButton = document.querySelector("#resetSketchButton");
-const generateButton = document.querySelector("#generateButton");
 const downloadButton = document.querySelector("#downloadButton");
 const printButton = document.querySelector("#printButton");
 const colorCount = document.querySelector("#colorCount");
@@ -40,10 +36,6 @@ const LOADING_MESSAGES = [
 
 let originalPreviewUrl = "";
 let selectedFile = null;
-let sourceImage = null;
-let activeTool = "draw";
-let isDrawing = false;
-let lastPoint = null;
 let loadingInterval = null;
 
 dropZone.addEventListener("dragover", (event) => {
@@ -68,28 +60,12 @@ imageInput.addEventListener("change", () => {
 });
 
 changeImageButton.addEventListener("click", openImagePicker);
-replaceImageButton.addEventListener("click", openImagePicker);
-
-drawToolButton.addEventListener("click", () => setTool("draw"));
-eraseToolButton.addEventListener("click", () => setTool("erase"));
-
-resetSketchButton.addEventListener("click", () => {
-  if (sourceImage) drawAutoSketch(sourceImage);
-});
-
-generateButton.addEventListener("click", generateFromSketch);
 downloadButton.addEventListener("click", downloadPage);
 printButton.addEventListener("click", printPage);
 
 colorCount.addEventListener("input", () => {
   colorCountValue.textContent = colorCount.value;
 });
-
-sketchCanvas.addEventListener("pointerdown", startDrawing);
-sketchCanvas.addEventListener("pointermove", drawStroke);
-sketchCanvas.addEventListener("pointerup", stopDrawing);
-sketchCanvas.addEventListener("pointercancel", stopDrawing);
-sketchCanvas.addEventListener("pointerleave", stopDrawing);
 
 function openImagePicker() {
   imageInput.value = "";
@@ -109,32 +85,27 @@ async function handleFile(file) {
   selectedFile = file;
   originalPreviewUrl = URL.createObjectURL(file);
   originalImage.src = originalPreviewUrl;
-  sketchOriginalImage.src = originalPreviewUrl;
 
+  let sketchBlob = null;
   try {
-    sourceImage = await loadImage(originalPreviewUrl);
+    const sourceImage = await loadImage(originalPreviewUrl);
     drawAutoSketch(sourceImage);
-    setTool("draw");
-    setState("sketch");
+    sketchBlob = await canvasToBlob(sketchCanvas);
   } catch {
-    setState("upload");
-    showError("The image could not be loaded.");
+    /* sketch is optional — continue without it */
   }
+
+  await runGeneration(sketchBlob);
 }
 
-async function generateFromSketch() {
-  clearError();
-
-  if (!selectedFile) {
-    showError("Please upload an image first.");
-    return;
-  }
+async function runGeneration(sketchBlob) {
+  if (!selectedFile) return;
 
   setState("loading");
 
   const formData = new FormData();
   formData.append("image", selectedFile);
-  formData.append("sketch", await canvasToBlob(sketchCanvas), "sketch.png");
+  if (sketchBlob) formData.append("sketch", sketchBlob, "sketch.png");
   formData.append("n_colors", colorCount.value);
   formData.append("want_story", wantStoryToggle.checked ? "true" : "false");
 
@@ -155,9 +126,10 @@ async function generateFromSketch() {
     generatedImage.src = `data:image/png;base64,${payload.image_base64}`;
     renderLegend(payload.legend || []);
     renderStory(payload.story || "");
+    renderAbout(payload.about || "");
     setState("result");
   } catch (error) {
-    setState("sketch");
+    setState("upload");
     showError(error.message);
   }
 }
@@ -190,6 +162,16 @@ function renderStory(story) {
   }
   storyText.textContent = story;
   storyCard.hidden = false;
+}
+
+function renderAbout(about) {
+  if (!about) {
+    aboutCard.hidden = true;
+    aboutText.textContent = "";
+    return;
+  }
+  aboutText.textContent = about;
+  aboutCard.hidden = false;
 }
 
 function downloadPage() {
@@ -297,49 +279,6 @@ function getContainRect(sourceWidth, sourceHeight, targetWidth, targetHeight) {
   };
 }
 
-function setTool(tool) {
-  activeTool = tool;
-  drawToolButton.classList.toggle("is-active", tool === "draw");
-  eraseToolButton.classList.toggle("is-active", tool === "erase");
-}
-
-function startDrawing(event) {
-  event.preventDefault();
-  isDrawing = true;
-  lastPoint = getCanvasPoint(event);
-  sketchCanvas.setPointerCapture(event.pointerId);
-}
-
-function drawStroke(event) {
-  if (!isDrawing || !lastPoint) return;
-  const point = getCanvasPoint(event);
-  sketchContext.lineCap = "round";
-  sketchContext.lineJoin = "round";
-  sketchContext.lineWidth = activeTool === "erase" ? 34 : 8;
-  sketchContext.strokeStyle = activeTool === "erase" ? PAPER_COLOR : INK_COLOR;
-  sketchContext.beginPath();
-  sketchContext.moveTo(lastPoint.x, lastPoint.y);
-  sketchContext.lineTo(point.x, point.y);
-  sketchContext.stroke();
-  lastPoint = point;
-}
-
-function stopDrawing(event) {
-  if (event.pointerId !== undefined && sketchCanvas.hasPointerCapture(event.pointerId)) {
-    sketchCanvas.releasePointerCapture(event.pointerId);
-  }
-  isDrawing = false;
-  lastPoint = null;
-}
-
-function getCanvasPoint(event) {
-  const rect = sketchCanvas.getBoundingClientRect();
-  return {
-    x: ((event.clientX - rect.left) / rect.width) * sketchCanvas.width,
-    y: ((event.clientY - rect.top) / rect.height) * sketchCanvas.height,
-  };
-}
-
 function canvasToBlob(canvas) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -351,7 +290,7 @@ function canvasToBlob(canvas) {
 
 function setState(state) {
   uploadPanel.hidden = state !== "upload";
-  sketchView.hidden = state !== "sketch";
+  optionsRow.hidden = state !== "upload";
   loadingState.hidden = state !== "loading";
   resultView.hidden = state !== "result";
 

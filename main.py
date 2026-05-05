@@ -1,4 +1,4 @@
-import base64
+import asyncio
 import os
 from pathlib import Path
 
@@ -19,20 +19,27 @@ BASE_DIR = Path(__file__).resolve().parent
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"))
-IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
 
 STORY_PROMPT = (
-    "Look at this picture. Write a 3-sentence, simple, warm, and friendly story "
-    "for a 6-year-old child about what is in the picture. Do not use difficult "
-    "words. Do not include a title."
+    "Look closely at this picture. Write ONE warm, friendly paragraph of about "
+    "6 to 8 sentences for a child who is going to color this picture. "
+    "First, name what you see in the picture in a clear way. Then walk the child "
+    "through the main parts of the picture and clearly suggest a color for each "
+    "one (for example: 'the sky is a soft baby blue', 'the leaves are bright "
+    "green', 'the roof is warm red', 'the windows are sunny yellow'). Mention "
+    "small details too so nothing is missed. Use simple, kind words. Do not "
+    "include a title, headings, lists, or markdown. Just one flowing paragraph."
 )
-IMAGE_PROMPT = (
-    "Redraw the main subject of this photo as a flat, simple 2D illustration. "
-    "Use ONLY about 6 to 8 large solid color shapes. NO shading, NO gradients, "
-    "NO texture, NO patterns, NO outlines, NO text, NO labels, NO logos. "
-    "Make the shapes big, clean, and easy for a 6-year-old to recognize. "
-    "Use a plain white or single-color background. "
-    "If a sketch is provided, follow its composition. Return one finished image."
+ABOUT_PROMPT = (
+    "Identify the main subject of this picture (for example: a famous monument, "
+    "an animal, a place, a vehicle). Then write a short, fun, educational "
+    "paragraph of 4 to 6 sentences about it for a curious 6-to-9-year-old child. "
+    "Start with the subject's name in bold-free plain text. Include where it is "
+    "or where it is found, why it is special, and one or two amazing facts a "
+    "child would love to know (for example: how tall it is, when it was built, "
+    "what it is used for, fun details). Use simple, kind, exciting words. Do "
+    "NOT include a title, headings, lists, markdown, or quotation marks. Just "
+    "one flowing paragraph."
 )
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
@@ -75,12 +82,6 @@ async def transform(
     n_colors: int = Form(8),
     want_story: bool = Form(True),
 ):
-    if gemini_client is None:
-        raise HTTPException(
-            status_code=500,
-            detail="GEMINI_API_KEY is missing. Add it to your .env file.",
-        )
-
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Please upload a valid image file.")
 
@@ -88,47 +89,27 @@ async def transform(
     if not image_bytes:
         raise HTTPException(status_code=400, detail="The uploaded image is empty.")
 
-    sketch_bytes = b""
-    sketch_content_type = ""
     if sketch is not None:
-        if not sketch.content_type or not sketch.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Please upload a valid sketch image.")
-        sketch_bytes = await sketch.read()
-        sketch_content_type = sketch.content_type
+        await sketch.read()  # consumed but no longer used
 
     try:
-        story = ""
-        if want_story:
-            story = await run_in_threadpool(
-                generate_child_story,
-                image_bytes,
-                image.content_type,
-            )
+        story_task = _maybe_text(want_story, STORY_PROMPT, image_bytes, image.content_type)
+        about_task = _maybe_text(want_story, ABOUT_PROMPT, image_bytes, image.content_type)
 
-        flat_image_bytes = await run_in_threadpool(
-            generate_flat_illustration,
-            story,
-            image_bytes,
-            image.content_type,
-            sketch_bytes,
-            sketch_content_type,
-        )
+        coloring_task = run_in_threadpool(build_coloring_page, image_bytes, n_colors)
 
-        coloring = await run_in_threadpool(
-            build_coloring_page,
-            flat_image_bytes,
-            n_colors,
-        )
+        story, about, coloring = await asyncio.gather(story_task, about_task, coloring_task)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"The AI transformation failed: {exc}",
+            detail=f"Could not build the coloring page: {exc}",
         ) from exc
 
     return {
         "story": story,
+        "about": about,
         "image_base64": coloring.page_png_b64,
         "preview_base64": coloring.preview_png_b64,
         "legend": coloring.legend,
@@ -136,60 +117,26 @@ async def transform(
     }
 
 
-def generate_child_story(image_bytes: bytes, mime_type: str) -> str:
+async def _maybe_text(enabled: bool, prompt: str, image_bytes: bytes, mime_type: str) -> str:
+    if not enabled or gemini_client is None:
+        return ""
+    try:
+        return await run_in_threadpool(generate_text, prompt, image_bytes, mime_type)
+    except Exception:
+        return ""
+
+
+def generate_text(prompt: str, image_bytes: bytes, mime_type: str) -> str:
     response = gemini_client.models.generate_content(
         model=TEXT_MODEL,
         contents=[
-            STORY_PROMPT,
+            prompt,
             types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
         ],
     )
-    story = getattr(response, "text", "").strip()
-    if not story:
-        raise RuntimeError("Gemini returned an empty story.")
-    return story
+    text = getattr(response, "text", "").strip()
+    if not text:
+        raise RuntimeError("Gemini returned an empty response.")
+    return text
 
 
-def generate_flat_illustration(
-    story: str,
-    image_bytes: bytes,
-    image_mime_type: str,
-    sketch_bytes: bytes,
-    sketch_mime_type: str,
-) -> bytes:
-    prompt = f"{story}\n\n{IMAGE_PROMPT}" if story else IMAGE_PROMPT
-    contents = [
-        prompt,
-        types.Part.from_bytes(data=image_bytes, mime_type=image_mime_type),
-    ]
-    if sketch_bytes:
-        contents.append(types.Part.from_bytes(data=sketch_bytes, mime_type=sketch_mime_type))
-
-    response = gemini_client.models.generate_content(
-        model=IMAGE_MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
-    )
-
-    for part in response_parts(response):
-        inline_data = getattr(part, "inline_data", None)
-        if inline_data and inline_data.data:
-            data = inline_data.data
-            if isinstance(data, str):
-                return base64.b64decode(data)
-            return data
-
-    response_text = getattr(response, "text", "").strip()
-    detail = f" Gemini said: {response_text}" if response_text else ""
-    raise RuntimeError(f"Gemini did not return an image.{detail}")
-
-
-def response_parts(response):
-    direct_parts = getattr(response, "parts", None)
-    if direct_parts:
-        return direct_parts
-    candidates = getattr(response, "candidates", None) or []
-    if not candidates:
-        return []
-    content = getattr(candidates[0], "content", None)
-    return getattr(content, "parts", None) or []

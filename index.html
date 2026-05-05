@@ -38,48 +38,21 @@
         </label>
       </section>
 
-      <section class="sketch-view" id="sketchView" hidden>
-        <article class="art-panel">
-          <div class="panel-header">
-            <span class="panel-title">Your photo</span>
-            <button class="text-button" id="replaceImageButton" type="button">Change image</button>
-          </div>
-          <div class="image-frame">
-            <img id="sketchOriginalImage" alt="Original uploaded picture" />
-          </div>
-        </article>
-
-        <article class="art-panel">
-          <div class="panel-header">
-            <span class="panel-title">Guide sketch <small>(optional)</small></span>
-            <div class="tool-row" role="toolbar" aria-label="Sketch tools">
-              <button class="icon-button is-active" id="drawToolButton" type="button" aria-label="Draw">Draw</button>
-              <button class="icon-button" id="eraseToolButton" type="button" aria-label="Erase">Erase</button>
-              <button class="text-button" id="resetSketchButton" type="button">Reset</button>
-            </div>
-          </div>
-          <div class="canvas-frame">
-            <canvas id="sketchCanvas" width="768" height="768" aria-label="Sketch over the uploaded picture"></canvas>
-          </div>
-
-          <div class="control-row">
-            <label class="control" for="colorCount">
-              <span class="control-label">Number of colors</span>
-              <span class="control-input">
-                <input id="colorCount" type="range" min="4" max="12" step="1" value="8" />
-                <output id="colorCountValue">8</output>
-              </span>
-            </label>
-            <label class="control control-checkbox">
-              <input id="wantStory" type="checkbox" checked />
-              <span>Include a kid-friendly story</span>
-            </label>
-            <button class="primary-button" id="generateButton" type="button">
-              Make my coloring page
-            </button>
-          </div>
-        </article>
+      <section class="options-row" id="optionsRow">
+        <label class="control" for="colorCount">
+          <span class="control-label">Number of colors</span>
+          <span class="control-input">
+            <input id="colorCount" type="range" min="6" max="16" step="1" value="12" />
+            <output id="colorCountValue">12</output>
+          </span>
+        </label>
+        <label class="control control-checkbox">
+          <input id="wantStory" type="checkbox" checked />
+          <span>Include coloring guide and fun facts</span>
+        </label>
       </section>
+
+      <canvas id="sketchCanvas" width="768" height="768" hidden></canvas>
 
       <section class="loading-state" id="loadingState" aria-live="polite" hidden>
         <div class="loader" aria-hidden="true">
@@ -89,19 +62,30 @@
       </section>
 
       <section class="result-view" id="resultView" hidden>
-        <article class="art-panel result-page">
-          <div class="panel-header">
-            <span class="panel-title">Your coloring page</span>
-            <div class="tool-row">
-              <button class="text-button" id="changeImageButton" type="button">New picture</button>
-              <button class="icon-button" id="downloadButton" type="button">Download</button>
-              <button class="primary-button" id="printButton" type="button">Print</button>
+        <div class="result-main">
+          <article class="art-panel result-page">
+            <div class="panel-header">
+              <span class="panel-title">Your coloring page</span>
+              <div class="tool-row">
+                <button class="text-button" id="changeImageButton" type="button">New picture</button>
+                <button class="icon-button" id="downloadButton" type="button">Download</button>
+                <button class="primary-button" id="printButton" type="button">Print</button>
+              </div>
             </div>
-          </div>
-          <div class="image-frame">
-            <img id="generatedImage" alt="Generated paint-by-number coloring page" />
-          </div>
-        </article>
+            <div class="image-frame">
+              <img id="generatedImage" alt="Generated paint-by-number coloring page" />
+            </div>
+          </article>
+
+          <section class="about-card no-print" id="aboutCard" hidden>
+            <h2>
+              <span class="about-badge" aria-hidden="true">!</span>
+              Did you know?
+            </h2>
+            <p class="story-hint">A few fun facts so you learn while you color.</p>
+            <p class="story" id="aboutText"></p>
+          </section>
+        </div>
 
         <aside class="result-sidebar no-print">
           <section class="legend-card">
@@ -111,7 +95,8 @@
           </section>
 
           <section class="story-card" id="storyCard" hidden>
-            <h2>A little story</h2>
+            <h2>Coloring guide</h2>
+            <p class="story-hint">A short walk-through of the picture and the colors to use.</p>
             <p class="story" id="storyText"></p>
           </section>
 

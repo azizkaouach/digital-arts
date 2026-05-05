@@ -150,6 +150,31 @@ body {
   align-items: start;
 }
 
+.options-row {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  padding: 18px 24px;
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.options-row .control {
+  flex: 1 1 220px;
+}
+
+#sketchCanvas {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+}
+
 .art-panel {
   background: var(--paper-soft);
   border: 1px solid var(--line);
@@ -374,6 +399,13 @@ body {
   align-items: start;
 }
 
+.result-main {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
 .result-page .image-frame {
   background: #fff;
 }
@@ -386,12 +418,66 @@ body {
 
 .legend-card,
 .story-card,
+.about-card,
 .reference-card {
   background: var(--paper-soft);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 22px;
   box-shadow: var(--shadow);
+}
+
+.about-card {
+  background: linear-gradient(135deg, #fff8eb 0%, #fff1d9 100%);
+  border-color: rgba(243, 197, 92, 0.5);
+  animation: slideUpFade 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: relative;
+  overflow: hidden;
+}
+
+.about-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--sun), var(--accent), var(--sky));
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.about-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  font-family: "Fraunces", serif;
+  font-size: 1.3rem;
+}
+
+.about-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--sun);
+  color: var(--ink);
+  font-family: "Fraunces", serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 10px -4px rgba(243, 197, 92, 0.7);
 }
 
 .legend-card h2,
@@ -453,12 +539,18 @@ body {
   font-size: 0.95rem;
 }
 
+.story-hint {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
 .story {
   margin: 0;
   font-family: "Fraunces", serif;
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   color: var(--ink);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 .reference-card h3 {
@@ -534,7 +626,8 @@ footer {
   body.is-printing .legend {
     grid-template-columns: repeat(4, 1fr);
   }
-  body.is-printing .story-card {
+  body.is-printing .story-card,
+  body.is-printing .about-card {
     display: none !important;
   }
 }

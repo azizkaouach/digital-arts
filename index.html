@@ -3,90 +3,133 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Machine Innocence: Algorithmic Reductionism</title>
+    <title>Paint-by-Number Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <main class="shell">
-      <section class="intro" aria-labelledby="project-title">
-        <p class="kicker">Interactive Digital Arts Installation</p>
-        <h1 id="project-title">Machine Innocence</h1>
-        <p class="subtitle">Algorithmic Reductionism</p>
-      </section>
+      <header class="hero">
+        <p class="kicker">Guided Coloring for Kids</p>
+        <h1>Paint-by-Number Studio</h1>
+        <p class="subtitle">
+          Drop in any picture &mdash; we&rsquo;ll turn it into a friendly,
+          numbered coloring page your child can paint in.
+        </p>
+      </header>
 
       <section class="upload-panel" id="uploadPanel">
         <label class="drop-zone" id="dropZone" for="imageInput">
-          <input id="imageInput" type="file" accept="image/*" />
-          <span class="drop-icon" aria-hidden="true"></span>
-          <span class="drop-title">Place a monument into the machine</span>
-          <span class="drop-copy">Drag an image here or click to upload</span>
+          <input id="imageInput" type="file" accept="image/*" hidden />
+          <div class="drop-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M24 32V8" />
+              <path d="m14 18 10-10 10 10" />
+              <path d="M8 32v6a4 4 0 0 0 4 4h24a4 4 0 0 0 4-4v-6" />
+            </svg>
+          </div>
+          <span class="drop-title">Upload any picture</span>
+          <span class="drop-copy">Drag a photo here, or click to choose one</span>
         </label>
       </section>
 
       <section class="sketch-view" id="sketchView" hidden>
         <article class="art-panel">
           <div class="panel-header">
-            <span>Historical Reality</span>
+            <span class="panel-title">Your photo</span>
             <button class="text-button" id="replaceImageButton" type="button">Change image</button>
           </div>
           <div class="image-frame">
-            <img id="sketchOriginalImage" alt="Original uploaded historical monument" />
+            <img id="sketchOriginalImage" alt="Original uploaded picture" />
           </div>
         </article>
 
         <article class="art-panel">
           <div class="panel-header">
-            <span>Human Sketch</span>
+            <span class="panel-title">Guide sketch <small>(optional)</small></span>
             <div class="tool-row" role="toolbar" aria-label="Sketch tools">
-              <button class="icon-button is-active" id="drawToolButton" type="button" aria-label="Draw">D</button>
-              <button class="icon-button" id="eraseToolButton" type="button" aria-label="Erase">E</button>
+              <button class="icon-button is-active" id="drawToolButton" type="button" aria-label="Draw">Draw</button>
+              <button class="icon-button" id="eraseToolButton" type="button" aria-label="Erase">Erase</button>
               <button class="text-button" id="resetSketchButton" type="button">Reset</button>
-              <button class="primary-button" id="generateButton" type="button">Generate</button>
             </div>
           </div>
           <div class="canvas-frame">
-            <canvas id="sketchCanvas" width="768" height="768" aria-label="Sketch of the uploaded monument"></canvas>
+            <canvas id="sketchCanvas" width="768" height="768" aria-label="Sketch over the uploaded picture"></canvas>
+          </div>
+
+          <div class="control-row">
+            <label class="control" for="colorCount">
+              <span class="control-label">Number of colors</span>
+              <span class="control-input">
+                <input id="colorCount" type="range" min="4" max="12" step="1" value="8" />
+                <output id="colorCountValue">8</output>
+              </span>
+            </label>
+            <label class="control control-checkbox">
+              <input id="wantStory" type="checkbox" checked />
+              <span>Include a kid-friendly story</span>
+            </label>
+            <button class="primary-button" id="generateButton" type="button">
+              Make my coloring page
+            </button>
           </div>
         </article>
       </section>
 
       <section class="loading-state" id="loadingState" aria-live="polite" hidden>
-        <div class="loader" aria-hidden="true"></div>
-        <p>The algorithm is interpreting history...</p>
+        <div class="loader" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <p id="loadingMessage">Mixing the colors&hellip;</p>
       </section>
 
       <section class="result-view" id="resultView" hidden>
-        <article class="art-panel">
+        <article class="art-panel result-page">
           <div class="panel-header">
-            <span>Historical Reality</span>
-            <button class="text-button" id="changeImageButton" type="button">Change image</button>
+            <span class="panel-title">Your coloring page</span>
+            <div class="tool-row">
+              <button class="text-button" id="changeImageButton" type="button">New picture</button>
+              <button class="icon-button" id="downloadButton" type="button">Download</button>
+              <button class="primary-button" id="printButton" type="button">Print</button>
+            </div>
           </div>
           <div class="image-frame">
-            <img id="originalImage" alt="Original uploaded historical monument" />
+            <img id="generatedImage" alt="Generated paint-by-number coloring page" />
           </div>
         </article>
 
-        <article class="art-panel">
-          <div class="panel-header">
-            <span>Algorithmic Reduction</span>
-          </div>
-          <div class="image-frame">
-            <img id="generatedImage" alt="AI-generated child-friendly monument illustration" />
-          </div>
-          <p class="story" id="storyText"></p>
-        </article>
+        <aside class="result-sidebar no-print">
+          <section class="legend-card">
+            <h2>Color guide</h2>
+            <p class="legend-hint">Match each number on the page to its color below.</p>
+            <ul class="legend" id="legendList"></ul>
+          </section>
+
+          <section class="story-card" id="storyCard" hidden>
+            <h2>A little story</h2>
+            <p class="story" id="storyText"></p>
+          </section>
+
+          <section class="reference-card">
+            <h3>Original photo</h3>
+            <div class="image-frame compact">
+              <img id="originalImage" alt="Original uploaded picture" />
+            </div>
+          </section>
+        </aside>
       </section>
 
       <p class="error-message" id="errorMessage" role="alert" hidden></p>
     </main>
 
-    <footer>A Digital Arts Installation by Aziz, Thameur, Rayen and Faouzi.</footer>
+    <footer class="no-print">
+      A Digital Arts Installation by Aziz, Thameur, Rayen and Faouzi.
+    </footer>
 
     <script src="script.js"></script>
   </body>

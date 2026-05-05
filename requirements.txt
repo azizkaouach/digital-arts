@@ -3,3 +3,7 @@ uvicorn
 python-multipart
 google-genai
 python-dotenv
+pillow
+numpy
+scikit-learn
+scipy

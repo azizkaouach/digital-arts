@@ -19,8 +19,9 @@ const printButton = document.querySelector("#printButton");
 const colorCount = document.querySelector("#colorCount");
 const colorCountValue = document.querySelector("#colorCountValue");
 const wantStoryToggle = document.querySelector("#wantStory");
-const sketchCanvas = document.querySelector("#sketchCanvas");
-const sketchContext = sketchCanvas.getContext("2d", { willReadFrequently: true });
+const loadingPhoto = document.querySelector("#loadingPhoto");
+const numbersImage = document.querySelector("#numbersImage");
+const numbersToggle = document.querySelector("#toggleNumbers");
 
 // Interactive Coloring UI
 const interactiveCanvas = document.querySelector("#interactiveCanvas");
@@ -37,10 +38,6 @@ let activeColor = "#ff7a59";
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
-
-const SKETCH_SIZE = 768;
-const PAPER_COLOR = "#fbf6e9";
-const INK_COLOR = "#1c1a16";
 
 const LOADING_MESSAGES = [
   "Mixing the colors…",
@@ -78,6 +75,44 @@ imageInput.addEventListener("change", () => {
 changeImageButton.addEventListener("click", openImagePicker);
 downloadButton.addEventListener("click", downloadPage);
 printButton.addEventListener("click", printPage);
+document.querySelector("#show3dButton").addEventListener("click", openShowcase3d);
+
+let currentLegend = [];
+let latestPreviewUrl = "";
+let latestOutlineUrl = "";
+let numbersVisible = true;
+
+function applyNumbersVisibility() {
+  numbersImage.style.visibility = numbersVisible ? "visible" : "hidden";
+  numbersToggle.classList.toggle("active", numbersVisible);
+  numbersToggle.setAttribute("aria-pressed", String(numbersVisible));
+}
+
+numbersToggle.addEventListener("click", () => {
+  numbersVisible = !numbersVisible;
+  applyNumbersVisibility();
+});
+
+async function openShowcase3d() {
+  if (!generatedImage.src || !interactiveCanvas.width) return;
+  try {
+    // Answer key first, then the child's own paint on top, no numbers.
+    const w = interactiveCanvas.width;
+    const h = interactiveCanvas.height;
+    const composite = document.createElement("canvas");
+    composite.width = w;
+    composite.height = h;
+    const cctx = composite.getContext("2d");
+    if (latestPreviewUrl) cctx.drawImage(await loadImage(latestPreviewUrl), 0, 0, w, h);
+    cctx.drawImage(interactiveCanvas, 0, 0);
+    const outlineImage = latestOutlineUrl ? await loadImage(latestOutlineUrl) : generatedImage;
+    const { openShowcase } = await import("/viewer3d.js");
+    openShowcase({ paintCanvas: composite, outlineImage, legend: currentLegend });
+  } catch (error) {
+    showError("The 3D card could not open. Try again in a moment.");
+    console.error(error);
+  }
+}
 
 colorCount.addEventListener("input", () => {
   colorCountValue.textContent = colorCount.value;
@@ -88,7 +123,39 @@ function openImagePicker() {
   imageInput.click();
 }
 
-async function handleFile(file) {
+let saveToGallery = true;
+let runToken = 0;
+const MAX_UPLOAD_SIDE = 1400;
+
+// Downscale big photos in the browser so phone uploads stay small and fast.
+async function downscaleImage(file) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const longSide = Math.max(bitmap.width, bitmap.height);
+    if (longSide <= MAX_UPLOAD_SIDE) {
+      bitmap.close();
+      return file;
+    }
+    const scale = MAX_UPLOAD_SIDE / longSide;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    if (!blob || blob.size >= file.size) return file;
+    const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch {
+    return file; // keep the original if the browser cannot decode it
+  }
+}
+
+async function handleFile(file, { save = true, exact = false } = {}) {
+  saveToGallery = save;
   clearError();
 
   if (!file.type.startsWith("image/")) {
@@ -101,32 +168,33 @@ async function handleFile(file) {
   selectedFile = file;
   originalPreviewUrl = URL.createObjectURL(file);
   originalImage.src = originalPreviewUrl;
+  loadingPhoto.src = originalPreviewUrl;
 
-  let sketchBlob = null;
-  try {
-    const sourceImage = await loadImage(originalPreviewUrl);
-    drawAutoSketch(sourceImage);
-    sketchBlob = await canvasToBlob(sketchCanvas);
-  } catch {
-    /* sketch is optional — continue without it */
-  }
-
-  await runGeneration(sketchBlob);
+  const token = ++runToken;
+  clearTimeout(textPollTimer);
+  setState("loading");
+  const upload = exact ? file : await downscaleImage(file);
+  if (token !== runToken) return;
+  await runGeneration(upload, token);
 }
 
 let textPollTimer = null;
 
-async function runGeneration(sketchBlob) {
-  if (!selectedFile) return;
-
-  clearTimeout(textPollTimer);
-  setState("loading");
-
+async function runGeneration(upload, token) {
   const formData = new FormData();
-  formData.append("image", selectedFile);
-  if (sketchBlob) formData.append("sketch", sketchBlob, "sketch.png");
+  formData.append("image", upload);
   formData.append("n_colors", colorCount.value);
-  formData.append("want_story", wantStoryToggle.checked ? "true" : "false");
+  formData.append("want_story", "false");
+  formData.append("save_to_gallery", saveToGallery ? "true" : "false");
+
+  // Story and fun facts load in parallel; the page does not wait for them.
+  renderStory("");
+  renderAbout("");
+  if (wantStoryToggle.checked) {
+    const textForm = new FormData();
+    textForm.append("image", upload);
+    fetchText(textForm, token);
+  }
 
   try {
     const response = await fetch("/api/transform", {
@@ -135,6 +203,7 @@ async function runGeneration(sketchBlob) {
     });
 
     const payload = await response.json();
+    if (token !== runToken) return;
     if (!response.ok) {
       throw new Error(payload.detail || "The transformation failed.");
     }
@@ -142,59 +211,72 @@ async function runGeneration(sketchBlob) {
       throw new Error("The server did not return a coloring page.");
     }
 
-    generatedImage.src = `data:image/png;base64,${payload.image_base64}`;
-    
-    generatedImage.onload = () => {
-      interactiveCanvas.width = generatedImage.naturalWidth;
-      interactiveCanvas.height = generatedImage.naturalHeight;
-      intCtx.lineCap = "round";
-      intCtx.lineJoin = "round";
-      window.outlineData = null; // Clear cached outline for flood fill
-    };
+    await showPage(payload);
+    if (token !== runToken) return;
 
     renderLegend(payload.legend || []);
-    renderStory(payload.story || "");
-    renderAbout(payload.about || "");
-    
-    if (payload.text_rate_limited) {
-      pollForText(formData);
-    }
-
     setState("result");
+    if (saveToGallery) loadGallery();
   } catch (error) {
+    if (token !== runToken) return;
     setState("upload");
     showError(error.message);
   }
 }
 
-async function pollForText(formData) {
+const dataUrl = (b64) => `data:image/png;base64,${b64}`;
+
+async function showPage(payload) {
+  const hasLayers = Boolean(payload.outline_base64 && payload.numbers_base64);
+  latestPreviewUrl = payload.preview_base64 ? dataUrl(payload.preview_base64) : "";
+  latestOutlineUrl = payload.outline_base64 ? dataUrl(payload.outline_base64) : "";
+  window.outlineData = null; // flood-fill walls are re-read for the new page
+
+  const bottomUrl = hasLayers ? latestOutlineUrl : dataUrl(payload.image_base64);
+  generatedImage.src = bottomUrl;
+  numbersImage.src = hasLayers ? dataUrl(payload.numbers_base64) : "";
+  numbersImage.hidden = !hasLayers;
+  numbersToggle.hidden = !hasLayers;
+  applyNumbersVisibility();
+
+  await generatedImage.decode();
+  if (hasLayers) await numbersImage.decode().catch(() => {});
+  interactiveCanvas.width = generatedImage.naturalWidth;
+  interactiveCanvas.height = generatedImage.naturalHeight;
+  intCtx.lineCap = "round";
+  intCtx.lineJoin = "round";
+}
+
+async function fetchText(formData, token) {
   clearTimeout(textPollTimer);
-  
+
   try {
     const res = await fetch("/api/text", {
       method: "POST",
       body: formData,
     });
-    
+
+    if (token !== runToken) return;
     if (res.status === 429) {
-      textPollTimer = setTimeout(() => pollForText(formData), 15000);
+      textPollTimer = setTimeout(() => fetchText(formData, token), 15000);
       return;
     }
-    
+
     if (!res.ok) {
       throw new Error("Failed to fetch text");
     }
-    
+
     const payload = await res.json();
+    if (token !== runToken) return; // user picked another picture meanwhile
     if (payload.story) renderStory(payload.story);
     if (payload.about) renderAbout(payload.about);
-    
   } catch (err) {
-    console.error("Polling error:", err);
+    console.error("Text error:", err);
   }
 }
 
 function renderLegend(legend) {
+  currentLegend = legend;
   legendList.innerHTML = "";
   legend.forEach((entry, idx) => {
     const li = document.createElement("li");
@@ -258,16 +340,14 @@ function downloadPage() {
   mctx.fillStyle = "#ffffff";
   mctx.fillRect(0, 0, mergeCanvas.width, mergeCanvas.height);
   
-  // Draw colors first
+  // Paint first, then outlines on top with multiply (no numbers)
   mctx.drawImage(interactiveCanvas, 0, 0);
-  
-  // Draw outlines on top with multiply
   mctx.globalCompositeOperation = "multiply";
   mctx.drawImage(generatedImage, 0, 0);
   
   const link = document.createElement("a");
   link.href = mergeCanvas.toDataURL("image/png");
-  link.download = "coloring-page.png";
+  link.download = "my-painting.png";
   document.body.append(link);
   link.click();
   link.remove();
@@ -276,8 +356,10 @@ function downloadPage() {
 function printPage() {
   if (!generatedImage.src) return;
   document.body.classList.add("is-printing");
+  numbersImage.style.visibility = numbersImage.hidden ? "hidden" : "visible"; // paper needs numbers
   const cleanup = () => {
     document.body.classList.remove("is-printing");
+    applyNumbersVisibility();
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
@@ -293,93 +375,10 @@ function loadImage(src) {
   });
 }
 
-function drawAutoSketch(image) {
-  sketchCanvas.width = SKETCH_SIZE;
-  sketchCanvas.height = SKETCH_SIZE;
-
-  const fit = getContainRect(image.width, image.height, SKETCH_SIZE, SKETCH_SIZE);
-  sketchContext.fillStyle = PAPER_COLOR;
-  sketchContext.fillRect(0, 0, SKETCH_SIZE, SKETCH_SIZE);
-  sketchContext.drawImage(image, fit.x, fit.y, fit.width, fit.height);
-
-  const imageData = sketchContext.getImageData(0, 0, SKETCH_SIZE, SKETCH_SIZE);
-  const pixels = imageData.data;
-  const gray = new Uint8ClampedArray(SKETCH_SIZE * SKETCH_SIZE);
-
-  for (let index = 0; index < gray.length; index += 1) {
-    const pixelIndex = index * 4;
-    gray[index] =
-      pixels[pixelIndex] * 0.299 +
-      pixels[pixelIndex + 1] * 0.587 +
-      pixels[pixelIndex + 2] * 0.114;
-  }
-
-  for (let y = 0; y < SKETCH_SIZE; y += 1) {
-    for (let x = 0; x < SKETCH_SIZE; x += 1) {
-      const pixelIndex = (y * SKETCH_SIZE + x) * 4;
-      pixels[pixelIndex] = 251;
-      pixels[pixelIndex + 1] = 246;
-      pixels[pixelIndex + 2] = 233;
-      pixels[pixelIndex + 3] = 255;
-    }
-  }
-
-  for (let y = 1; y < SKETCH_SIZE - 1; y += 1) {
-    for (let x = 1; x < SKETCH_SIZE - 1; x += 1) {
-      const index = y * SKETCH_SIZE + x;
-      const gx =
-        -gray[index - SKETCH_SIZE - 1] -
-        gray[index - 1] * 2 -
-        gray[index + SKETCH_SIZE - 1] +
-        gray[index - SKETCH_SIZE + 1] +
-        gray[index + 1] * 2 +
-        gray[index + SKETCH_SIZE + 1];
-      const gy =
-        -gray[index - SKETCH_SIZE - 1] -
-        gray[index - SKETCH_SIZE] * 2 -
-        gray[index - SKETCH_SIZE + 1] +
-        gray[index + SKETCH_SIZE - 1] +
-        gray[index + SKETCH_SIZE] * 2 +
-        gray[index + SKETCH_SIZE + 1];
-      const strength = Math.abs(gx) + Math.abs(gy);
-
-      if (strength > 118) {
-        const pixelIndex = index * 4;
-        const ink = Math.max(18, 120 - strength * 0.15);
-        pixels[pixelIndex] = ink;
-        pixels[pixelIndex + 1] = ink;
-        pixels[pixelIndex + 2] = ink;
-      }
-    }
-  }
-
-  sketchContext.putImageData(imageData, 0, 0);
-}
-
-function getContainRect(sourceWidth, sourceHeight, targetWidth, targetHeight) {
-  const scale = Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
-  const width = sourceWidth * scale;
-  const height = sourceHeight * scale;
-  return {
-    x: (targetWidth - width) / 2,
-    y: (targetHeight - height) / 2,
-    width,
-    height,
-  };
-}
-
-function canvasToBlob(canvas) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("The sketch could not be prepared."));
-    }, "image/png");
-  });
-}
-
 function setState(state) {
   uploadPanel.hidden = state !== "upload";
   optionsRow.hidden = state !== "upload";
+  galleryEl.hidden = state !== "upload";
   loadingState.hidden = state !== "loading";
   resultView.hidden = state !== "result";
 
@@ -517,7 +516,7 @@ function floodFill(startX, startY, fillColorRgb) {
   const canvasWidth = interactiveCanvas.width;
   const canvasHeight = interactiveCanvas.height;
   
-  if (!window.outlineData) {
+  if (!window.outlineData) { // walls = outline-only image, so numbers never block a fill
     const tempCanvas = document.createElement("canvas");
     tempCanvas.width = canvasWidth;
     tempCanvas.height = canvasHeight;
@@ -612,3 +611,83 @@ function floodFill(startX, startY, fillColorRgb) {
   
   intCtx.putImageData(imageData, 0, 0);
 }
+
+/* ---------- Gallery ---------- */
+const galleryEl = document.querySelector("#gallery");
+const galleryGrid = document.querySelector("#galleryGrid");
+const galleryMore = document.querySelector("#galleryMore");
+const GALLERY_VISIBLE = 12;
+let galleryItems = [];
+let galleryExpanded = false;
+
+async function loadGallery() {
+  try {
+    const response = await fetch("/api/gallery");
+    if (!response.ok) throw new Error("gallery unavailable");
+    galleryItems = (await response.json()).items || [];
+  } catch {
+    galleryItems = [];
+  }
+  renderGallery();
+}
+
+function renderGallery() {
+  galleryGrid.replaceChildren();
+  const shown = galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_VISIBLE);
+
+  shown.forEach((item) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "gallery-item";
+    card.setAttribute("aria-label", `Color ${item.name}`);
+
+    const img = document.createElement("img");
+    img.src = item.url;
+    img.alt = item.name;
+    img.loading = "lazy";
+    card.appendChild(img);
+
+    if (item.kind === "upload") {
+      const badge = document.createElement("span");
+      badge.className = "gallery-badge";
+      badge.textContent = "New";
+      card.appendChild(badge);
+    }
+
+    const caption = document.createElement("span");
+    caption.className = "gallery-caption";
+    caption.textContent = item.name;
+    card.appendChild(caption);
+
+    card.addEventListener("click", () => pickGalleryItem(item, card));
+    galleryGrid.appendChild(card);
+  });
+
+  galleryMore.hidden = galleryExpanded || galleryItems.length <= GALLERY_VISIBLE;
+  galleryEl.classList.toggle("is-empty", galleryItems.length === 0);
+}
+
+async function pickGalleryItem(item, card) {
+  if (card.disabled) return;
+  galleryGrid.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  clearError();
+  try {
+    const response = await fetch(item.url);
+    if (!response.ok) throw new Error("fetch failed");
+    const blob = await response.blob();
+    const name = item.url.split("/").pop();
+    const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+    await handleFile(file, { save: false, exact: true });
+  } catch {
+    showError("Could not open that picture. Please try another one.");
+  } finally {
+    galleryGrid.querySelectorAll("button").forEach((b) => (b.disabled = false));
+  }
+}
+
+galleryMore.addEventListener("click", () => {
+  galleryExpanded = true;
+  renderGallery();
+});
+
+loadGallery();

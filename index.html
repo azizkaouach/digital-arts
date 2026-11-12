@@ -52,9 +52,20 @@
         </label>
       </section>
 
-      <canvas id="sketchCanvas" width="768" height="768" hidden></canvas>
+      <section class="gallery" id="gallery" aria-labelledby="galleryTitle">
+        <div class="gallery-head">
+          <h2 id="galleryTitle">Or pick a picture</h2>
+          <p>Tap any picture below to turn it into a coloring page.</p>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
+        <button class="gallery-more" id="galleryMore" type="button" hidden>Show all</button>
+      </section>
 
       <section class="loading-state" id="loadingState" aria-live="polite" hidden>
+        <div class="loading-photo" aria-hidden="true">
+          <img id="loadingPhoto" alt="" />
+          <span class="loading-sweep"></span>
+        </div>
         <div class="loader" aria-hidden="true">
           <span></span><span></span><span></span>
         </div>
@@ -69,6 +80,7 @@
               <div class="tool-row">
                 <button class="text-button" id="changeImageButton" type="button">New picture</button>
                 <button class="icon-button" id="downloadButton" type="button">Download</button>
+                <button class="icon-button" id="show3dButton" type="button">3D card</button>
                 <button class="primary-button" id="printButton" type="button">Print</button>
               </div>
             </div>
@@ -83,13 +95,16 @@
                 <label for="brushSize" class="brush-size-label">Size: <span id="brushSizeValue">20</span></label>
                 <input type="range" id="brushSize" min="5" max="100" value="20" class="brush-size-slider" />
               </div>
-              <div class="toolbar-spacer"></div>
-              <button class="tool-button danger" id="toolClear" type="button" title="Clear All">🗑️ Clear</button>
+              <div class="tool-group tool-group-end">
+                <button class="tool-button active" id="toggleNumbers" type="button" aria-pressed="true" title="Show or hide the numbers">Numbers</button>
+                <button class="tool-button danger" id="toolClear" type="button" title="Clear All">🗑️ Clear</button>
+              </div>
             </div>
 
             <div class="image-frame interactive-frame" id="imageFrame">
               <img id="generatedImage" alt="Generated paint-by-number coloring page" />
               <canvas id="interactiveCanvas"></canvas>
+              <img id="numbersImage" class="numbers-layer" alt="" />
             </div>
           </article>
 
